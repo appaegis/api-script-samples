@@ -8,8 +8,7 @@ import urllib
 import requests
 import pydash
 
-
-API_HOST = os.getenv('API_HOST')
+API_HOST = os.getenv('API_HOST', 'https://api.appaegis.net')
 USER_EMAIL = os.getenv('USER_EMAIL')
 USER_SSH_IP = os.getenv('USER_SSH_IP')
 API_KEY = os.getenv('API_KEY')
