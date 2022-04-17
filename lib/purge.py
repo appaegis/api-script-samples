@@ -10,27 +10,6 @@ import pydash
 from .common import API_HOST
 
 
-def getResource(id, idToken, url):
-  logging.debug(f'Read by id: {url}, {id}')
-  quotedId = urllib.parse.quote(id)
-  url = f'{url}/{quotedId}'
-  resp = requests.get(
-    f'{API_HOST}{url}',
-    headers={'content-type': 'application/json', 'idToken': idToken})
-  output = resp.json()
-  error = pydash.get(output, 'error', None)
-  if resp.status_code >= 400 or error != None:
-    raise Exception(output)
-  return output
-
-def getResources(idToken, url):
-  logging.debug(f'Read all: {url}')
-  resp = requests.get(
-    f'{API_HOST}{url}',
-    headers={'content-type': 'application/json', 'idToken': idToken})
-  output = resp.json()
-  return output
-
 def updateResource(dryrun, id, idToken, url, data = None):
   logging.debug(f'Update: {url}, id: {id}, data: {data}')
   kwargs = {}

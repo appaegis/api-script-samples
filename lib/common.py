@@ -2,10 +2,11 @@
 
 import os
 import json
-import argparse
 import logging
+import urllib
 
 import requests
+import pydash
 
 
 API_HOST = os.getenv('API_HOST')
@@ -22,10 +23,15 @@ POLICY_API = '/api/v1/policies'
 APP_API = '/api/v1/applications'
 LOOK_UP_IDS_API = '/api/v1/util/lookupIds'
 
+NETWORKS_API = '/api/v1/networks'
+
 def booleanString(s):
-    if s.lower() not in {'false', 'true', 't', 'f', 'yes', 'no', 'y', 'n'}:
-        raise ValueError('Not a valid boolean string')
-    return s.lower() in {'true', 't', 'yes', 'y'}
+  if s.lower() not in {'false', 'true', 't', 'f', 'yes', 'no', 'y', 'n'}:
+      raise ValueError('Not a valid boolean string')
+  return s.lower() in {'true', 't', 'yes', 'y'}
+
+def argString(s):
+  return str(s)
 
 def getToken(apiKey, apiSecret):
   payload = {
@@ -38,3 +44,25 @@ def getToken(apiKey, apiSecret):
     headers={'content-type': 'application/json'})
   output = resp.json()
   return output.get('Authorization', None)
+
+
+def getResource(id, idToken, url):
+  logging.debug(f'Read by id: {url}, {id}')
+  quotedId = urllib.parse.quote(id)
+  url = f'{url}/{quotedId}'
+  resp = requests.get(
+    f'{API_HOST}{url}',
+    headers={'content-type': 'application/json', 'idToken': idToken})
+  output = resp.json()
+  error = pydash.get(output, 'error', None)
+  if resp.status_code >= 400 or error != None:
+    raise Exception(output)
+  return output
+
+def getResources(idToken, url):
+  logging.debug(f'Read all: {url}')
+  resp = requests.get(
+    f'{API_HOST}{url}',
+    headers={'content-type': 'application/json', 'idToken': idToken})
+  output = resp.json()
+  return output
