@@ -1,18 +1,25 @@
 ### Prerequisite
 
-- For `ubuntu` 20.04 LTS and `ptyhon` 3.8.5 and `virtualenv` util
+#### Create API key if you haven't done so:
+- Login to your Appaegis access cloud account
+- Select "Setting --> API Keys" from the menu on the left side of the window
+- Click the "+ API Key" button (Please note the API secret string is only displayed once)
+
+#### Review our API document here:
+- [https://api.appaegis.net/api/v1/api-docs/](https://api.appaegis.net/api/v1/api-docs/)
+
+
+### Quickstart
+
+#### For `ubuntu` 20.04 LTS and `ptyhon` 3.8.5 and `virtualenv` util
 ```
 sudo apt install virtualenv
 virtualenv .venv -p python3
 source .venv/bin/activate
 ```
 - Make sure you've give execution permission(`chmod +x`) to those script files.
-- Get the `API_KEY`, `API_SECRET` and `API_HOST` from web-portal (you can take a look at the test scripts)
-
-### Quickstart
 
 #### Create python local environment at project root path
-
 ```
 pip install -r requirements.txt
 ```
