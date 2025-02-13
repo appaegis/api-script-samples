@@ -11,10 +11,10 @@ import pydash
 API_HOST = os.getenv('API_HOST', 'https://api.appaegis.net')
 USER_EMAIL = os.getenv('USER_EMAIL')
 USER_SSH_IP = os.getenv('USER_SSH_IP')
-API_KEY = os.getenv('API_KEY')
-API_SECRET = os.getenv('API_SECRET')
+API_KEY = os.getenv('apiKey')
+API_SECRET = os.getenv('apiSecret')
 
-TOKEN_EXCHANGE = '/api/v1/authentication'
+TOKEN_EXCHANGE = '/api/v2/authentication'
 USER_API = '/api/v1/users'
 TEAM_API = '/api/v1/teams'
 ROLE_API = '/api/v1/accessRoles'
@@ -32,16 +32,21 @@ def booleanString(s):
 def argString(s):
   return str(s)
 
+def argInt(s):
+  return int(s)
+
 def getToken(apiKey, apiSecret):
   payload = {
-    'apiSecret': apiSecret,
     'apiKey': apiKey,
+    'apiSecret': apiSecret,
   }
   resp = requests.post(
     f'{API_HOST}{TOKEN_EXCHANGE}',
     data=json.dumps(payload),
     headers={'content-type': 'application/json'})
   output = resp.json()
+  if resp.status_code > 299:
+    logging.warning(f'{resp.status_code}: {resp.text}')
   return output.get('Authorization', None)
 
 
