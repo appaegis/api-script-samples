@@ -1,18 +1,23 @@
 ### Prerequisite
 
 #### Create API key if you haven't done so:
-- Login to your Appaegis access cloud account
-- Select "Setting --> API Keys" from the menu on the left side of the window
-- Click the "+ API Key" button (Please note the API secret string is only displayed once)
+- Login to your Mammoth Cyber management portal
+- Select "Setting --> Admins & API Keys --> API Keys" from the menu on the left side of the window
+- Click the "+ Add" button (Please note the API secret string is only displayed once).
+You can either copy the secret or download it as a file, note the file is in dotenv format,
+you can pass it to the sample script directly, see more details below.
 
 #### Review our API document here:
-- [https://api.appaegis.net/api/v1/api-docs/](https://api.appaegis.net/api/v1/api-docs/)
-
+- Note our API is upgraded to v2
+- Our sample script assume you use a recent Python3 version
 
 ### Quickstart
 
 #### For `ubuntu` 20.04 LTS and `ptyhon` 3.8.5 and `virtualenv` util
 ```
+# It is recommended to setup venv just for this repo
+cd api-script-samples
+
 sudo apt install virtualenv
 virtualenv .venv -p python3
 source .venv/bin/activate
@@ -21,10 +26,29 @@ source .venv/bin/activate
 
 #### Create python local environment at project root path
 ```
+# Assume you've already in the api-script-samples directory
 pip install -r requirements.txt
 ```
 
+#### Use downloaded API key file as env file for script, for example:
+- ex-01: Upload block list
+```
+python3 block-list-v2.py --env credentails.txt --file input.txt
+```
+
+
 #### Use environment variable as input for script, for example:
+- ex-01: Upload block list
+```
+export apiKey=abcd................................
+export apiSecret=abcd.............................
+python3 block-list-v2.py --file input.txt
+```
+
+
+
+<details>
+<summary>Outdated v1 examples</summary>
 
 - ex-01: Variable injecting with export
 
@@ -69,3 +93,4 @@ export API_SECRET=abcd.............................
 
 ./list-se.py --nwname "my network"
 ```
+</details>
