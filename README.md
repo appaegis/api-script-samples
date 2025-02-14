@@ -13,7 +13,7 @@ you can pass it to the sample script directly, see more details below.
 
 ### Quickstart
 
-#### Use the provided `install.sh` to prepare all necessary environment on Ubuntu
+#### Use the provided [`install.sh`](install.sh) to prepare all necessary environment on Ubuntu
 It installs git, python, pip, venv, checkout this repo, create an venv 
 and install all required libraries. 
 Remember in order to run this script, you need to activate the venv first from your shell.
