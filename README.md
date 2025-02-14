@@ -13,16 +13,24 @@ you can pass it to the sample script directly, see more details below.
 
 ### Quickstart
 
-#### For `ubuntu` 20.04 LTS and `ptyhon` 3.8.5 and `virtualenv` util
+#### Use the provided `install.sh` to prepare all necessary environment on Ubuntu
+It installs git, python, pip, venv, checkout this repo, create an venv 
+and install all required libraries. 
+Remember in order to run this script, you need to activate the venv first from your shell.
+
+### Manual preparation
+If you use an environment other than Ubuntu, or if you have existing python environment, 
+you may want to follow below steps.
+
+#### For `Ubuntu 24.04 LTS` and `python 3.12.3` and `venv` module
 ```
 # It is recommended to setup venv just for this repo
 cd api-script-samples
 
-sudo apt install virtualenv
-virtualenv .venv -p python3
-source .venv/bin/activate
+sudo apt install python3-venv
+python3 -m venv "apienv"
+source apienv/bin/activate
 ```
-- Make sure you've give execution permission(`chmod +x`) to those script files.
 
 #### Create python local environment at project root path
 ```
@@ -30,14 +38,16 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-#### Use downloaded API key file as env file for script, for example:
+### Run API script
+
+#### Method 1: Use downloaded API key file as env file for script, for example:
 - ex-01: Upload block list
 ```
 python3 block-list-v2.py --env credentails.txt --file input.txt
 ```
 
 
-#### Use environment variable as input for script, for example:
+#### Method 2: Use environment variable as input for script, for example:
 - ex-01: Upload block list
 ```
 export apiKey=abcd................................
