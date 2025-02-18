@@ -15,8 +15,14 @@ you can pass it to the sample script directly, see more details below.
 
 #### Use the provided [`install.sh`](install.sh) to prepare all necessary environment on Ubuntu
 It installs git, python, pip, venv, checkout this repo, create an venv 
-and install all required libraries. 
-Remember in order to run this script, you need to activate the venv first from your shell.
+and install all required libraries.
+
+You can download and run it with this command line on Linux. Note you need to execute from an account allows `sudo`:
+```
+curl -sSL https://raw.githubusercontent.com/appaegis/api-script-samples/refs/heads/main/install.sh | bash
+```
+**After install is done, you can [run API script](#run-api-script)**.
+
 
 ### Manual preparation
 If you use an environment other than Ubuntu, or if you have existing python environment, 
@@ -40,10 +46,16 @@ pip install -r requirements.txt
 
 ### Run API script
 
+**Reminder: Make sure you've activated the venv for the shell you are using.**
+
 #### Method 1: Use downloaded API key file as env file for script, for example:
 - ex-01: Upload block list
 ```
 python3 block-list-v2.py --env credentails.txt --file input.txt
+```
+or
+```
+python3 block-list-v2.py --env credentails.txt --url https://url-to-list
 ```
 
 

@@ -10,8 +10,8 @@ from lib.common import getToken
 from lib.common import booleanString
 
 import ipaddress
-import logging
 import argparse
+import urllib
 import json
 import os
 import re
@@ -109,7 +109,7 @@ def get_longest_match_in_line(line: str) -> str:
     # Pick the longest matched string by character length
     return max(all_matches, key=len)
 
-def read_domains_and_extract_longest(filepath: str) -> list:
+def read_domains_and_extract_longest(filepath: str, url: str) -> list:
     """
     This is the main parsing function.
     Reads each line from the given file, skipping empty lines and lines that start
@@ -128,11 +128,16 @@ def read_domains_and_extract_longest(filepath: str) -> list:
     print()
     print("Parsing:")
 
-    with open(filepath, 'r', encoding='utf-8') as file:
-        for line in file:
+    # open input stream from file or url
+    stream = open(filepath, 'r') if len(filepath)>0 else urllib.request.urlopen(url)
+    with stream:
+        for rawline in stream:
             lines_total += 1
-            line = line.strip()
 
+            if isinstance(rawline, bytes):
+               rawline = rawline.decode("utf-8")
+               
+            line = rawline.strip()
             # Skip empty lines or lines starting with '#' or '!'
             if not line or line.startswith('#') or line.startswith('!'):
                 lines_skipped += 1
@@ -254,8 +259,7 @@ def main(argsdict):
     apiSecret = os.environ.get('apiSecret', apiSecret)
 
   # parse input file
-  file_path = argsdict['file']
-  blocklist = read_domains_and_extract_longest(file_path)
+  blocklist = read_domains_and_extract_longest(argsdict['file'], argsdict['url'])
 
   # acquire auth token
   idToken = getToken(apiKey=apiKey, apiSecret=apiSecret)
@@ -270,7 +274,9 @@ def main(argsdict):
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Change the default block list')
   parser.add_argument('--env', dest='env_path', type=str, default='', required=False, help='Path to the credential file in dotenv format')
-  parser.add_argument('--file', dest='file', type=str, default='', required=True, help='Path to the file containing the block list')
+  group = parser.add_mutually_exclusive_group(required=True)
+  group.add_argument('--file', dest='file', type=str, default='', help='Path to the file containing the block list')
+  group.add_argument('--url',  dest='url',  type=str, default='', help='HTTP/HTTPS URL to the block list')
   parser.add_argument('--apiKey', dest='apiKey', type=str, default=API_KEY, required=False, help='API key if not set in environment')
   parser.add_argument('--apiSecret', dest='apiSecret', type=str, default=API_SECRET, required=False, help='API secret if not set in environment')
   args = parser.parse_args()
