@@ -174,7 +174,7 @@ def read_domains_and_extract_longest(filepath: str, url: str) -> list:
     print()
     return results
 
-def update_blocklist(client: Client, blocklist: list):
+def update_blocklist(client: Client, blocklist: list, category_name: str, list_type: str):
   # query web category
   query = gql(
     """
@@ -200,16 +200,20 @@ def update_blocklist(client: Client, blocklist: list):
     """
   )
   # query the pre-defined block category
-  variables = { "namefilter": "Advanced Safe Browsing" }
+  variables = { "namefilter": category_name }
   result = gqlexec(client, query, variables)
   webcat_list = result['listWebCategorys']
+  if not webcat_list['items']:
+    raise ValueError(f"Category '{category_name}' not found")
   blockcat = webcat_list['items'][0]
 
-  # modify the include list of this block category
-  # Add static entries like below
-  # blocklist.append("3.4.5.6")
-  blockcat['includeList'] = blocklist
-  print(f"new block list size: {len(blocklist)}")
+  # modify the specified list of this block category
+  if list_type == 'include':
+    blockcat['includeList'] = blocklist
+    print(f"new include list size: {len(blocklist)}")
+  else:  # exclude
+    blockcat['excludeList'] = blocklist
+    print(f"new exclude list size: {len(blocklist)}")
 
   # write back the changed object and check the new value
   update = gql(
@@ -237,8 +241,8 @@ def update_blocklist(client: Client, blocklist: list):
   new_webcat = result['updateWebCategory']
 
   # verify that the updated block list is the same as the one we set
-  newblocklist = new_webcat['includeList']
-  print(f"Update result matches: {newblocklist == blocklist}")
+  newlist = new_webcat['includeList'] if list_type == 'include' else new_webcat['excludeList']
+  print(f"Update result matches: {newlist == blocklist}")
   # If you want to see the updated object, uncomment the line below
   # result_string = json.dumps(new_webcat, indent=4)
   # print(result_string)
@@ -253,6 +257,7 @@ def main(argsdict):
   apiKey = argsdict['apiKey']
   apiSecret = argsdict['apiSecret']
   env_path = argsdict['env_path']
+  
   if env_path and env_path != '':
     load_dotenv(env_path)
     apiKey = os.environ.get('apiKey', apiKey)
@@ -268,17 +273,25 @@ def main(argsdict):
 
   # take action
   # note we have size limit of up to 5000
-  update_blocklist(client, blocklist[:5000])
+  update_blocklist(client, blocklist[:5000], argsdict['category'], argsdict['list_type'])
   return
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Change the default block list')
+  # auth block
   parser.add_argument('--env', dest='env_path', type=str, default='', required=False, help='Path to the credential file in dotenv format')
-  group = parser.add_mutually_exclusive_group(required=True)
-  group.add_argument('--file', dest='file', type=str, default='', help='Path to the file containing the block list')
-  group.add_argument('--url',  dest='url',  type=str, default='', help='HTTP/HTTPS URL to the block list')
   parser.add_argument('--apiKey', dest='apiKey', type=str, default=API_KEY, required=False, help='API key if not set in environment')
   parser.add_argument('--apiSecret', dest='apiSecret', type=str, default=API_SECRET, required=False, help='API secret if not set in environment')
+
+  # input block
+  input_group = parser.add_mutually_exclusive_group(required=True)
+  input_group.add_argument('--file', dest='file', type=str, default='', help='Path to the file containing the block list')
+  input_group.add_argument('--url',  dest='url',  type=str, default='', help='HTTP/HTTPS URL to the block list')
+
+  # category block
+  parser.add_argument('--category', dest='category', type=str, default='Advanced Safe Browsing', help='Name of the category to update')
+  parser.add_argument('--list-type', dest='list_type', type=str, choices=['include', 'exclude'], default='include', help='Which list to update: include (default) or exclude')
+
   args = parser.parse_args()
 
   main(vars(args))
