@@ -35,15 +35,15 @@ WILDCARD_DOMAIN_REGEX = re.compile(
 
 # Regex for IPv4 addresses: "192.168.0.1", "255.255.255.255", etc.
 IPV4_REGEX = re.compile(
-    r'(?:25[0-5]|2[0-4]\d|[01]?\d?\d)'
-    r'(?:\.(?:25[0-5]|2[0-4]\d|[01]?\d?\d)){3}'
+    r'^(?:25[0-5]|2[0-4]\d|[01]?\d?\d)'
+    r'(?:\.(?:25[0-5]|2[0-4]\d|[01]?\d?\d)){3}$'
 )
 
 # Regex for IPv4 subnet / CIDR
 IPV4NET_REGEX = re.compile(
-    r'(?:25[0-5]|2[0-4]\d|[01]?\d?\d)'
+    r'^(?:25[0-5]|2[0-4]\d|[01]?\d?\d)'
     r'(?:\.(?:25[0-5]|2[0-4]\d|[01]?\d?\d)){3}/'
-    r'(?:[0-9]|[12]\d|3[0-2])'
+    r'(?:3[0-2]|[12]\d|\d)$'
 )
 
 class entrytype(Enum):
@@ -51,6 +51,37 @@ class entrytype(Enum):
     IPv4 = 1
     CIDR = 2
     Domain = 3
+
+def is_invalid_ip_format(candidate: str) -> bool:
+    """Check if this looks like an IP but is actually invalid"""
+    # Check for patterns like 33.33.33.333 (invalid octets)
+    parts = candidate.split('.')
+    if len(parts) == 4:
+        try:
+            for part in parts:
+                num = int(part)
+                if num > 255:  # Invalid octet
+                    return True
+        except ValueError:
+            pass
+    return False
+
+def is_invalid_cidr(candidate: str) -> bool:
+    """Check if this looks like a CIDR but is actually invalid"""
+    # Check if it looks like IP/number format but is invalid
+    parts = candidate.split('/')
+    if len(parts) == 2:
+        ip_part, cidr_part = parts
+        # Check if IP part looks valid but CIDR part is invalid
+        try:
+            ipaddress.ip_address(ip_part)
+            cidr_num = int(cidr_part)
+            if cidr_num > 32:  # Invalid CIDR for IPv4
+                return True
+        except ValueError:
+            pass
+    return False
+
 
 def get_ipblocklist(blocklist):
     return ",".join(f'"{s}"' for s in blocklist)
@@ -99,7 +130,11 @@ def gqlexec(client, query, variables):
   result = client.execute(query, variable_values=variables)
   return result
 
-def block_entry_type(candidate: str) -> entrytype: 
+def block_entry_type(candidate: str) -> entrytype:
+  # Check for invalid formats first (to avoid treating them as other types)
+  if is_invalid_cidr(candidate) or is_invalid_ip_format(candidate):
+    return entrytype.Unknown
+
   # is it IPv4 addresses
   try:
     ipaddress.ip_address(candidate)
@@ -107,13 +142,9 @@ def block_entry_type(candidate: str) -> entrytype:
   except ValueError:
     pass
 
-  # is it v4 subnet
-  try:
-    # Use IPv4Network. `strict=False` allows host bits to be set (e.g., "192.168.0.1/24")
-    ipaddress.IPv4Network(candidate, strict=False)
+  # is it v4 subnet (use regex for strict validation)
+  if IPV4NET_REGEX.fullmatch(candidate):
     return entrytype.CIDR
-  except ValueError:
-    pass
 
   # is it domains
   if DOMAIN_REGEX.match(candidate) or WILDCARD_DOMAIN_REGEX.match(candidate):
@@ -126,54 +157,63 @@ def get_longest_match_in_line(line: str) -> str:
     Searches the line for any standard domain, wildcard domain, or IPv4 address.
     Returns the longest match found, or None if there are no matches.
     """
+    stripped_line = line.strip()
+
+    # Check for valid CIDR first (complete line match)
+    if IPV4NET_REGEX.fullmatch(stripped_line):
+        return stripped_line
+
+    # Check if it's an invalid CIDR format (IP/number but invalid)
+    if is_invalid_cidr(stripped_line):
+        return stripped_line  # Return it so we can process and warn about it
+
+    # Check if it's an invalid IP format (like 33.33.33.333)
+    if is_invalid_ip_format(stripped_line):
+        return stripped_line  # Return it so we can process and warn about it
+
+    # Check for complete IPv4 address (must match entire line)
+    if IPV4_REGEX.fullmatch(stripped_line):
+        return stripped_line
+
+    # Find domain matches within the line
     all_matches = []
-
-    # Find all domain matches
-    all_matches.extend(m.group(0) for m in DOMAIN_REGEX.finditer(line))
-    
-    # Find all wildcard domain matches
-    all_matches.extend(m.group(0) for m in WILDCARD_DOMAIN_REGEX.finditer(line))
-
-    # Find all IPv4 address matches
-    all_matches.extend(m.group(0) for m in IPV4_REGEX.finditer(line))
-
-    # Find all IPv4 subnet matches
-    all_matches.extend(m.group(0) for m in IPV4NET_REGEX.finditer(line))
+    all_matches.extend(m.group(0) for m in DOMAIN_REGEX.finditer(stripped_line))
+    all_matches.extend(m.group(0) for m in WILDCARD_DOMAIN_REGEX.finditer(stripped_line))
 
     if not all_matches:
         return None
-
-    # Pick the longest matched string by character length
     return max(all_matches, key=len)
 
 def read_domains_and_extract_longest(filepath: str, url: str) -> list:
     """
-    This is the main parsing function.
+    This is the main parsing function for PAC blocklist.
     Reads each line from the given file, skipping empty lines and lines that start
-    with '#', extracts the longest valid domain match if present, and returns 
-    a list of those matches (or None for lines with no match).
+    with '#', extracts IPv4 addresses only (PAC doesn't support CIDR), and returns
+    a list of those matches.
     """
-    lines_total =0
+    lines_total = 0
     lines_skipped = 0
     lines_parsed = 0
     lines_failed = 0
+    lines_invalid = 0
     count_domain = 0
     count_ipv4 = 0
     count_cidr = 0
     results = []
+    invalid_entries = []
 
     print()
-    print("Parsing:")
+    print("Parsing for PAC (IPv4 addresses only):")
 
     # open input stream from file or url
-    stream = open(filepath, 'r') if len(filepath)>0 else urllib.request.urlopen(url)
+    stream = open(filepath, 'r') if len(filepath) > 0 else urllib.request.urlopen(url)
     with stream:
         for rawline in stream:
             lines_total += 1
 
             if isinstance(rawline, bytes):
                rawline = rawline.decode("utf-8")
-               
+
             line = rawline.strip()
             # Skip empty lines or lines starting with '#' or '!'
             if not line or line.startswith('#') or line.startswith('!'):
@@ -187,27 +227,61 @@ def read_domains_and_extract_longest(filepath: str, url: str) -> list:
                 continue
 
             candidate = longest_match.strip()
-            lines_parsed += 1
-
-            ### Now check the type
             type = block_entry_type(candidate)
+
+            if type == entrytype.Unknown:
+                # Check what type of invalid format it is
+                if is_invalid_cidr(candidate):
+                    print(f"⚠️  Invalid CIDR (ignored): {candidate}")
+                    invalid_entries.append(f"Invalid CIDR: {candidate}")
+                    lines_invalid += 1
+                elif is_invalid_ip_format(candidate):
+                    print(f"⚠️  Invalid IP (ignored): {candidate}")
+                    invalid_entries.append(f"Invalid IP: {candidate}")
+                    lines_invalid += 1
+                else:
+                    print(f"⚠️  Unknown format (ignored): {candidate}")
+                    invalid_entries.append(f"Unknown format: {candidate}")
+                    lines_invalid += 1
+                continue
+
+            # Valid entry processing
+            lines_parsed += 1
             if type == entrytype.CIDR:
-              count_cidr += 1
+                count_cidr += 1
+                print(f"ℹ️  CIDR ignored for PAC: {candidate}")
+                invalid_entries.append(f"CIDR not supported in PAC: {candidate}")
             elif type == entrytype.IPv4:
-              count_ipv4 += 1
-              results.append(candidate)
+                count_ipv4 += 1
+                print(f"✓ IPv4 added: {candidate}")
+                results.append(candidate)
             elif type == entrytype.Domain:
-               count_domain += 1
+                count_domain += 1
+                print(f"ℹ️  Domain ignored for PAC: {candidate}")
+                invalid_entries.append(f"Domain not supported in PAC: {candidate}")
 
-            # now add this new result
-
+    # Summary
+    print()
     print(f"Total   lines: {lines_total}")
-    print(f"Skipped lines: {lines_skipped}")
-    print(f"Success lines: {lines_parsed}")
-    print(f"Failed  lines: {lines_failed}")
-    print(f"   IPv4 addrs: {count_ipv4}")
-    print(f"   IPv4subnet: {count_cidr}")
-    print(f"      Domains: {count_domain}")
+    print(f"Skipped lines: {lines_skipped} (comments/empty)")
+    print(f"Success lines: {lines_parsed} (valid entries)")
+    print(f"Failed  lines: {lines_failed} (unparseable)")
+    print(f"Invalid lines: {lines_invalid} (recognized but invalid)")
+    print(f"")
+    print(f"Valid entries breakdown:")
+    print(f"   IPv4 addrs: {count_ipv4} (added to PAC)")
+    print(f"   IPv4subnet: {count_cidr} (ignored - PAC doesn't support CIDR)")
+    print(f"      Domains: {count_domain} (ignored - PAC doesn't support domains)")
+    print(f"   Total for PAC: {len(results)}")
+
+    # Show ignored/invalid entries if any
+    if invalid_entries:
+        print()
+        print("ℹ️  NOTE: The following entries were ignored (not suitable for PAC):")
+        for i, entry in enumerate(invalid_entries, 1):
+            print(f"   {i}. {entry}")
+        print("   PAC files only support individual IPv4 addresses.")
+
     print()
     return results
 
@@ -269,9 +343,9 @@ def update_blocklist(client: Client, blocklist: list):
 
 
 def main(argsdict):
-  # The order to searching for API key: 
-  #   environment variables, 
-  #   the --apiKey command line argument, 
+  # The order to searching for API key:
+  #   environment variables,
+  #   the --apiKey command line argument,
   #   the --env argument.
   # if more than one is provided, the later option will override option checked earlier.
   apiKey = argsdict['apiKey']
