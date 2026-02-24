@@ -51,13 +51,16 @@ pip install -r requirements.txt
 #### Method 1: Use downloaded API key file as env file for script, for example:
 - ex-01: Upload block list
 ```
-python3 block-list-v2.py --env credentails.txt --file input.txt
+python3 block-list-v2.py --env credentials.txt --file input.txt
 ```
 or
 ```
-python3 block-list-v2.py --env credentails.txt --url https://url-to-list
+python3 block-list-v2.py --env credentials.txt --url https://url-to-list
 ```
-
+- ex-02: Update device tag based on CSV
+```
+python3 device-tag-update.py --env credentials.txt --csv ./device-tag-update.csv --dry-run=true
+```
 
 #### Method 2: Use environment variable as input for script, for example:
 - ex-01: Upload block list
