@@ -1,6 +1,16 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+# What does this script do:
+# It's a bulk URL/domain/IP blocklist uploader for a web filtering category (e.g. "Advanced Safe Browsing") via GraphQL. 
+#
+# Here's the flow:
+# 1. Parse input — reads a blocklist from a local file (--file) or URL (--url). Each line is parsed using regex to extract domains (plain or wildcard), IPv4 addresses, or CIDR subnets. Lines starting with # or ! are skipped. It prints a summary of parsed entries.
+# 2. Authenticate — gets an auth token via getToken(apiKey, apiSecret).
+# 3. Query the web category — uses a GraphQL query (listWebCategorys) to find a category by name (default: "Advanced Safe Browsing") and retrieves its current includeList and excludeList.
+# 4. Update the list — replaces the category's includeList or excludeList (chosen by --list-type) with the parsed blocklist (capped at 5000 entries), then writes it back via a updateWebCategory GraphQL mutation.
+# 5. Verify — compares the returned list from the mutation result against what was sent to confirm the update succeeded.
+
 
 from lib.common import API_KEY
 from lib.common import API_SECRET
