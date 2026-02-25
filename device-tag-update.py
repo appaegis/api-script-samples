@@ -5,7 +5,7 @@
 Update device tags by MAC address from a CSV file.
 
 Input:
-  - CSV with columns "mac_address" (or "mac") and "tag" (or "device_tag"). 
+  - CSV with columns "Device Identifier" (or "mac_address/mac") and "Device Tag" (or "tag/device_tag"). 
     Duplicate MACs in CSV are de-duplicated (first row kept); a warning is printed.
   - MACs are normalized (lowercase, colon-separated, e.g. aa:bb:cc:dd:ee:ff)
     for both CSV and GraphQL results.
@@ -217,9 +217,13 @@ def load_csv(path):
             return rows
         for raw in reader:
             row = {k.strip().lower(): (v.strip() if isinstance(v, str) else v) for k, v in raw.items()}
-            # Map alternate column names
-            mac = _normalize_mac(row.get('mac_address') or row.get('mac') or '')
-            tag = (row.get('tag') or row.get('device_tag') or '').strip()
+            # Map alternate column names (keys are already lowercased; support names with spaces)
+            mac = _normalize_mac(
+                row.get('device identifier') or row.get('mac_address') or row.get('mac') or ''
+            )
+            tag = (
+                row.get('device tag') or row.get('tag') or row.get('device_tag') or ''
+            ).strip()
             if not mac:
                 continue
             rows.append({'mac': mac, 'tag': tag})
