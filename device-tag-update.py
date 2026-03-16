@@ -35,6 +35,7 @@ Auth:
 from lib.common import API_KEY, API_SECRET, API_HOST, getToken, booleanString
 import argparse
 import csv
+import json
 import os
 import sys
 
@@ -43,6 +44,9 @@ from gql import gql, Client
 from gql.transport.aiohttp import AIOHTTPTransport
 import requests
 
+
+# Toggle extra debug printing of raw GraphQL results
+DEBUG_GRAPHQL_DUMP = False
 
 REGISTERED_DEVICE_API = '/api/v2/registered-device'
 
@@ -53,6 +57,8 @@ LIST_REGISTERED_DEVICES = gql(
       registeredDevices(payload: $payload, limit: $limit, nextToken: $nextToken) {
         list {
           id
+          serial
+          status
           deviceModel
           deviceName
           deviceTag {
@@ -138,7 +144,19 @@ def _normalize_mac(mac):
     return raw
 
 
-def fetch_all_registered_devices(client, page_size=500):
+def _debug_dump_devices(devices):
+    """Print full GraphQL device list when DEBUG_GRAPHQL_DUMP is True."""
+    if not DEBUG_GRAPHQL_DUMP:
+        return
+    try:
+        print('--- Raw registeredDevices.list dump (debug) ---')
+        print(json.dumps(devices, indent=2, sort_keys=True))
+        print('--- End of dump ---\n')
+    except Exception as e:
+        print(f'Failed to pretty-print devices for debug: {e}', file=sys.stderr)
+
+
+def fetch_all_registered_devices(client, page_size=50):
     """
     Run one paginated GraphQL query until all pages are fetched. Returns list of device dicts.
     Uses empty payload so no filter (all devices); if API requires payload, uses minimal.
@@ -154,6 +172,7 @@ def fetch_all_registered_devices(client, page_size=500):
         reg = result.get('registeredDevices') or {}
         items = reg.get('list') or []
         all_devices.extend(items)
+        print(f'... Fetched {len(items)} devices ...')
         next_token = reg.get('nextToken')
         if not next_token:
             break
@@ -382,6 +401,13 @@ def main(args_dict):
 
     # Single GraphQL query: fetch all devices (paginated), then filter by CSV in memory
     all_devices = fetch_all_registered_devices(client)
+    # Special case: populate "macAddresses" field with "serial" if "status" is "Init", 
+    #               which means the device has never logged in before.
+    for raw_entry in all_devices:
+        if raw_entry.get('status') == 'Init':
+            raw_entry['macAddresses'] = [raw_entry.get('serial')]
+    _debug_dump_devices(all_devices)
+
     mac_to_device, duplicate_backend_macs = build_mac_to_device(all_devices)
     print(f'Fetched {len(all_devices)} device(s). CSV rows: {len(rows)}.\n')
 
